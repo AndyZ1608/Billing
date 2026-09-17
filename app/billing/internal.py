@@ -57,9 +57,16 @@ def report(db, settings, start, end, project_id=None, instance_id=None, now=None
     start, end = utc(start), utc(end)
     cutoff = min(end, now)
     cloud = settings.openstack_cloud_id
-    projects = {p.project_id: p for p in db.scalars(select(Project).where(Project.cloud_id == cloud))}
-    instances = {i.instance_id: i for i in db.scalars(select(Instance).where(Instance.cloud_id == cloud))}
-    volumes = list(db.scalars(select(Volume).where(Volume.cloud_id == cloud)))
+    project_query = select(Project).where(Project.cloud_id == cloud)
+    instance_query = select(Instance).where(Instance.cloud_id == cloud)
+    volume_query = select(Volume).where(Volume.cloud_id == cloud)
+    if project_id:
+        project_query = project_query.where(Project.project_id == project_id)
+        instance_query = instance_query.where(Instance.project_id == project_id)
+        volume_query = volume_query.where(Volume.project_id == project_id)
+    projects = {p.project_id: p for p in db.scalars(project_query)}
+    instances = {i.instance_id: i for i in db.scalars(instance_query)}
+    volumes = list(db.scalars(volume_query))
     if instance_id:
         if instance_id not in instances:
             raise LookupError("Instance not found")
@@ -196,6 +203,7 @@ def report(db, settings, start, end, project_id=None, instance_id=None, now=None
         current = {
             pid: dict(
                 instance_count=0,
+                active_vm_count=0,
                 vcpu_count=Decimal(0),
                 ram_gb=Decimal(0),
                 nova_disk_gib=Decimal(0),
@@ -231,12 +239,14 @@ def report(db, settings, start, end, project_id=None, instance_id=None, now=None
             )
             p = current[vm.project_id]
             p["instance_count"] += alive
+            p["active_vm_count"] += alive and vm.status == "ACTIVE"
             p["vcpu_count"] += cpu
             p["ram_gb"] += ram
             p["nova_disk_gib"] += disk
             if iid in vm_buckets:
                 vm_buckets[iid]["current"] = dict(
                     status=vm.status,
+                    present=bool(alive),
                     vcpus=vm.vcpus,
                     ram_gib=vm.ram_gb,
                     local_root_gib=vm.root_disk_gb,
@@ -304,6 +314,7 @@ def report(db, settings, start, end, project_id=None, instance_id=None, now=None
             k: sum((p[k] for p in current.values()), Decimal(0))
             for k in (
                 "instance_count",
+                "active_vm_count",
                 "vcpu_count",
                 "ram_gb",
                 "nova_disk_gib",

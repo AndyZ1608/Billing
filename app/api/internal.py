@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
+from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import AwareDatetime
 
 from app.api.metering import Range
@@ -72,11 +73,26 @@ def instance_costs(
     start: AwareDatetime | None = None,
     end: AwareDatetime | None = None,
     project_id: UUID | None = None,
-    limit: Limit = 50,
+    limit: Limit = 20,
     offset: Offset = 0,
+    q: str = Query("", max_length=255),
+    status: Literal["ALL", "ACTIVE", "SHUTOFF", "ERROR", "OTHER"] = "ALL",
+    current_only: bool = False,
 ):
     result = internal_report(request, db, start, end, project_id)
     items = result.pop("instances")
+    items = [
+        r
+        for r in items
+        if (not current_only or r["current"]["present"])
+        and (not q or q.casefold() in (r["instance_name"] + str(r["instance_id"])).casefold())
+        and (
+            status == "ALL"
+            or r["current"]["status"] == status
+            or (status == "OTHER" and r["current"]["status"] not in ("ACTIVE", "SHUTOFF", "ERROR"))
+        )
+    ]
+    items.sort(key=lambda r: (r["instance_name"].casefold(), str(r["instance_id"])))
     result.pop("projects")
     result.pop("trace")
     return response(

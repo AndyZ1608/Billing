@@ -1,8 +1,9 @@
 "use strict";
 const $ = (selector) => document.querySelector(selector);
-const state = {q:"",sort:"project_name",direction:"asc",projectOffset:0,instanceOffset:0,volumeOffset:0,vmCostOffset:0,traceOffset:0};
+const state = {q:"",sort:"project_name",direction:"asc",projectOffset:0,instanceOffset:0,volumeOffset:0,vmCostOffset:0,traceOffset:0,vmQ:"",vmStatus:"ALL",vmLimit:20};
 const projectId = location.pathname.startsWith("/projects/") ? location.pathname.split("/")[2] : null;
-const limit = 25;
+const limit = 20;
+const syncPage=location.pathname==="/sync";
 let selectedRange=null;
 const selectedVm=new URLSearchParams(location.search).get("instance_id");
 let loading = false;
@@ -38,12 +39,12 @@ function pager(id, page, key, refresh) {
   const node=$(id);node.replaceChildren();
   const previous=element("button","← Previous"),next=element("button","Next →");
   previous.disabled=page.offset===0;next.disabled=page.offset+page.limit>=page.total;
-  previous.onclick=()=>{state[key]=Math.max(0,state[key]-limit);refresh().catch(e=>error(e.message));};
-  next.onclick=()=>{state[key]+=limit;refresh().catch(e=>error(e.message));};
+  previous.onclick=()=>{state[key]=Math.max(0,state[key]-page.limit);refresh().catch(e=>error(e.message));};
+  next.onclick=()=>{state[key]+=page.limit;refresh().catch(e=>error(e.message));};
   node.append(element("span",`${page.total ? page.offset+1 : 0}–${Math.min(page.offset+page.limit,page.total)} of ${page.total}`),previous,next);
 }
 function metrics(data) {
-  const values=[["VMs",data.instance_count,""],["Allocated vCPU",data.vcpu_count,""],["Allocated RAM",data.ram_gb,"GiB"],["Nova local disks",data.nova_disk_gib,"GiB"],["Cinder capacity",data.cinder_volume_gib,"GiB"],["Billable SSD",data.total_billable_ssd_gib,"GiB"]];
+  const values=[["VMs",data.instance_count,""],["ACTIVE VMs",data.active_vm_count,""],["Allocated vCPU",data.vcpu_count,""],["Allocated RAM",data.ram_gb,"GiB"],["Nova local disks",data.nova_disk_gib,"GiB"],["Cinder capacity",data.cinder_volume_gib,"GiB"],["Billable SSD",data.total_billable_ssd_gib,"GiB"]];
   $("#metrics").replaceChildren(...values.map(([title,value,unit])=>{const box=element("article",null,"metric"),valueNode=element("strong",number(value));valueNode.append(element("small",unit));box.append(element("span",title,"label"),valueNode);return box;}));
   const incomplete=data.incomplete_instances+data.incomplete_volumes;
   const pending=data.pending_missing_instances+data.pending_missing_volumes;
@@ -53,7 +54,8 @@ function metrics(data) {
 async function projects() {
   const params=rangeQuery({q:state.q,sort:state.sort,direction:state.direction,limit,offset:state.projectOffset});
   const page=await api(`/billing/projects?${params}`);
-  table("#projects",page.items,[r=>named(r.project_name+(r.is_placeholder?" (unresolved)":r.is_missing?" (missing)":""),r.project_id,`/projects/${r.project_id}`),...['instance_count','vcpu_count','ram_gb','total_billable_ssd_gib'].map(k=>r=>number(r[k])),...['cpu','ram','ssd','total'].map(k=>r=>vnd(r.cost[k]))]);
+  table("#projects",page.items,[r=>named(r.project_name+(r.is_placeholder?" (unresolved)":r.is_missing?" (missing)":""),r.project_id,`/projects/${r.project_id}`),...['instance_count','active_vm_count','vcpu_count','ram_gb','total_billable_ssd_gib'].map(k=>r=>number(r[k])),r=>vnd(r.cost.total)]);
+  document.querySelectorAll('#projects tbody tr').forEach((row,i)=>{if(page.items[i]){row.style.cursor='pointer';row.onclick=e=>{if(!e.target.closest('a'))location.href=`/projects/${page.items[i].project_id}`;};}});
   pager("#project-pager",page,"projectOffset",projects);
 }
 async function instances() {
@@ -70,31 +72,35 @@ async function refresh() {
   if(loading||!selectedRange)return;loading=true;
   selectedRange.as_of=new Date().toISOString();
   try {
-    const [health,runs,summary]=await Promise.all([api("/health"),api("/sync-runs?limit=5"),api((projectId?`/billing/projects/${projectId}`:"/billing/summary")+"?"+rangeQuery())]);
+    const [health,runs,summary]=await Promise.all([api("/health"),syncPage?api("/sync-runs?limit=5"):Promise.resolve({items:[]}),api((projectId?`/billing/projects/${projectId}`:"/billing/summary")+"?"+rangeQuery())]);
     $("#connection").textContent=health.openstack.replaceAll("_"," ");
-    if(!projectId) $("#title").textContent=`${health.cloud_name||"Cloud"} · Overview`;
+    if(!projectId&&!syncPage) $("#title").textContent=`${health.cloud_name||"Cloud"} · Overview`;
     $("#region").textContent=health.region||"—";
     $("#last-sync").textContent=date(health.last_successful_sync);
-    $("#last-failure").textContent=date(health.last_failed_sync);
+    $("#last-failure").textContent=summary.diagnostics.notification_connection||"DISABLED";
     $("#sync").disabled=health.sync_running||syncPending;
     $("#sync").textContent=health.sync_running||syncPending?"Syncing…":"Sync now";
     $("#freshness").textContent=Object.entries(health.service_status||{}).map(([service,value])=>`${service}: ${value.status} (last complete: ${date(value.last_success_at)})`).join(" · ")||"No completed synchronization. Configure OpenStack credentials to begin.";
     metrics(summary.current);
     renderCosts(summary);
-    await Promise.all([vmCosts(),loadDiagnostics(summary.diagnostics)]);
-    if(selectedVm)await vmDetail();
+    if(projectId)await vmCosts();
+    if(syncPage)await loadDiagnostics(summary.diagnostics);
+    if(projectId&&selectedVm)await vmDetail();
     table("#runs",runs.items,[r=>named(date(r.started_at),r.sync_run_id),r=>r.status,r=>r.projects_found,r=>r.instances_found,r=>r.volumes_found,r=>r.errors.map(e=>`${e.service}: ${e.code}${e.count?` (${e.count})`:""}`).join("; ")||"—"]);
     if(projectId){
       const project=await api(`/projects/${projectId}`);
       $("#title").textContent=project.project_name;
       $("#project-meta").textContent=`UUID: ${project.project_id} · ${project.enabled==null?"Status unknown":project.enabled?"Enabled":"Disabled"} · Domain: ${project.domain_id||"Unknown"}`;
-      await Promise.all([instances(),volumes()]);
-    }else await projects();
+      if($("#inventory-details").open)await Promise.all([instances(),volumes()]);
+    }else if(!syncPage)await projects();
     error("");
   }catch(e){error(e.message);}finally{loading=false;}
 }
-$("#overview").hidden=!!projectId;$("#detail").hidden=!projectId;
-if(projectId){for(const [label,href] of [["Current Inventory",`/projects/${projectId}`],["Historical Usage",`/history?project_id=${projectId}`],["Cost",`/costs?project_id=${projectId}`],["Instances","#instances"],["Volumes","#volumes"]]){const a=element("a",label);a.href=href;$("#project-tabs").append(a);}}
+$("#overview").hidden=!!projectId||syncPage;
+$("#vm-billing").hidden=!projectId;
+$("#sync-section").hidden=!syncPage;
+if(syncPage){$("#title").textContent="OpenStack Sync";for(const id of ["#internal-period","#cost-metrics","#metrics","#internal-rates","#internal-status"])$(id).hidden=true;}$("#detail").hidden=!projectId;
+if(projectId){for(const [label,href] of [["Current Inventory",`/projects/${projectId}`],["Historical Usage",`/history?project_id=${projectId}`],["Cost",`/costs?project_id=${projectId}`],["VMs","#vm-billing"],["Volumes","#volumes"]]){const a=element("a",label);a.href=href;$("#project-tabs").append(a);}}
 $("#sync").onclick=async()=>{
   syncPending=true;$("#sync").disabled=true;$("#sync").textContent="Syncing…";
   try{await api("/sync",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});error("");}
@@ -109,8 +115,8 @@ initializePeriod().then(refresh).catch(e=>error(e.message));setInterval(refresh,
 
 function cards(target,cost){$(target).replaceChildren(...["cpu","ram","ssd","total"].map(k=>{const n=element("article",null,"metric");n.append(element("span",k.toUpperCase()+" · selected period"),element("strong",vnd(cost[k])));return n;}));}
 function renderCosts(data){if(!projectId){const n=element("article",null,"metric");n.append(element("span","Discovered projects"),element("strong",String(data.diagnostics.billing_projects)));$("#metrics").prepend(n);}cards("#cost-metrics",data.cost);const p=data.pricing;$("#internal-rates").textContent=`Configured internal rates: CPU ${vnd(p.cpu_per_vcpu_hour)} / vCPU-hour · RAM ${vnd(p.ram_per_gib_hour)} / GiB-hour · SSD ${vnd(p.ssd_per_gib_hour)} / GiB-hour. Actual historical rates: ${Object.entries(data.actual_unit_prices).map(([dimension,prices])=>dimension+": "+prices.map(vnd).join(", ")).join(" · ")}. Rates take effect through the INTERNAL-VND price book.`;$("#internal-status").textContent=`${data.data_quality_status} ${data.data_quality_status!=="HEALTHY"?"— BILLING DATA INCOMPLETE":""} · ${!data.rated_segments&&!data.estimated_segments&&!data.unrated_segments?"No observed billable usage in this range; earlier history may be unavailable":data.estimated?"Includes estimated open usage":"Rated usage"} · ${data.unrated_segments} unrated segments · Rated ${vnd(data.rated_cost.total)} + estimated ${vnd(data.estimated_cost.total)} · As of ${date(data.as_of)}. ${data.projects_with_billing_usage??""} projects with usage.`;}
-async function vmCosts(){const q=rangeQuery({limit,offset:state.vmCostOffset});if(projectId)q.set("project_id",projectId);const page=await api(`/billing/instances?${q}`);table("#internal-vms",page.items,[r=>named(r.instance_name,r.instance_id,`/projects/${r.project_id}?instance_id=${r.instance_id}#vm-cost-detail`),r=>r.project_id,r=>r.current.status,r=>number(r.current.vcpus),r=>number(r.current.ram_gib),r=>number(r.current.total_billable_ssd_gib),...['cpu','ram','ssd','total'].map(k=>r=>vnd(r.cost[k]))]);pager("#vm-cost-pager",page,"vmCostOffset",vmCosts);}
-async function vmDetail(){const data=await api(`/billing/instances/${selectedVm}?${rangeQuery({limit,offset:state.traceOffset})}`);$("#vm-cost-detail").hidden=false;$("#vm-title").textContent=`${data.instance_name} · VM billing trace`;$("#vm-inventory").textContent=JSON.stringify({instance_id:data.instance_id,project_id:data.project_id,...data.current},null,2);cards("#vm-cost-cards",data.cost);$("#vm-trace-status").textContent=`${data.data_quality_status} · CPU ${data.usage.vcpu_hours} vCPU-h · RAM ${data.usage.ram_gib_hours} GiB-h · SSD ${data.usage.ssd_gib_hours} GiB-h. Open intervals are estimates, not persisted financial charges.`;table("#vm-trace",data.trace,[r=>`${date(r.start)} → ${date(r.end)}`,r=>`${r.state} / ${r.history_confidence}`,r=>r.meter,r=>r.allocated_quantity,r=>r.hours,r=>r.usage,r=>vnd(r.unit_price),r=>vnd(r.amount),r=>r.status+(r.reason?`: ${r.reason}`:""),r=>named("Lifecycle & usage",r.source_state_period_id,`/resources/${r.resource_type}/${r.resource_id}`)]);pager("#vm-trace-pager",{total:data.trace_total,offset:data.offset,limit:data.limit},"traceOffset",vmDetail);}
+async function vmCosts(){if(!projectId)return;const q=rangeQuery({limit:state.vmLimit,offset:state.vmCostOffset,project_id:projectId,q:state.vmQ,status:state.vmStatus,current_only:true});const page=await api(`/billing/instances?${q}`);table("#internal-vms",page.items,[r=>named(r.instance_name,r.instance_id,`/projects/${r.project_id}?instance_id=${r.instance_id}#vm-cost-detail`),r=>r.current.status,r=>number(r.current.vcpus),r=>number(r.current.ram_gib),r=>number(r.current.total_billable_ssd_gib),r=>r.current.status==='ACTIVE'?'BILLING':'NOT BILLING',r=>vnd(r.cost.total)]);pager("#vm-cost-pager",page,"vmCostOffset",vmCosts);}
+async function vmDetail(){const data=await api(`/billing/instances/${selectedVm}?${rangeQuery({limit,offset:state.traceOffset})}`);if(data.project_id!==projectId)throw new Error("VM does not belong to this project");$("#vm-cost-detail").hidden=false;$("#vm-summary").textContent=`${data.instance_id} · ${data.current.status} · ${data.current.vcpus} vCPU · ${data.current.ram_gib} GiB RAM · ${data.current.total_billable_ssd_gib} GiB billable SSD`;$("#vm-title").textContent=`${data.instance_name} · VM billing trace`;$("#vm-inventory").textContent=JSON.stringify({instance_id:data.instance_id,project_id:data.project_id,...data.current},null,2);cards("#vm-cost-cards",data.cost);$("#vm-trace-status").textContent=`${data.data_quality_status} · CPU ${data.usage.vcpu_hours} vCPU-h · RAM ${data.usage.ram_gib_hours} GiB-h · SSD ${data.usage.ssd_gib_hours} GiB-h. Open intervals are estimates, not persisted financial charges.`;table("#vm-trace",data.trace,[r=>`${date(r.start)} → ${date(r.end)}`,r=>`${r.state} / ${r.history_confidence}`,r=>r.meter,r=>r.allocated_quantity,r=>r.hours,r=>r.usage,r=>vnd(r.unit_price),r=>vnd(r.amount),r=>r.status+(r.reason?`: ${r.reason}`:""),r=>named("Lifecycle & usage",r.source_state_period_id,`/resources/${r.resource_type}/${r.resource_id}`)]);pager("#vm-trace-pager",{total:data.trace_total,offset:data.offset,limit:data.limit},"traceOffset",vmDetail);}
 async function loadDiagnostics(data){data=data||await api("/diagnostics/openstack");$("#diagnostics").textContent=JSON.stringify(data,null,2);$("#reconciliation-status").textContent=`${data.data_quality_status} · Discovered projects ${data.projects_visible??"Unknown"} / stored ${data.billing_projects} · VMs ${data.instances_visible??"Unknown"} / stored ${data.billing_instances} · Volumes ${data.volumes_visible??"Unknown"} / stored ${data.billing_volumes} · Projects with VMs ${data.projects_with_vms}; without VMs ${data.projects_without_vms} · Pending deletion ${data.pending_delete_confirmation} · Unknown project resources ${data.unknown_project_resources} · Nova events ${data.notification_connection??"DISABLED"} · Notification issues ${data.notification_issue_count??0}. Counts describe the last SDK response; compare with CLI to verify scope.`;table("#reconciliation",data.per_project,[r=>named(r.project_name,r.project_id,`/projects/${r.project_id}`),r=>r.openstack_vms??"Unknown",r=>r.billing_vms,r=>r.openstack_volumes??"Unknown",r=>r.billing_volumes]);}
 let billingToday;
 function isoDate(d){return d.toISOString().slice(0,10);}
@@ -122,3 +128,8 @@ $("#internal-period").onsubmit=e=>{e.preventDefault();applyPeriod().catch(e=>err
 $("#test-connection").onclick=()=>$("#sync").click();
 
 for(const id of ["#period-start","#period-end"]) $(id).onchange=()=>{$("#period-preset").value="custom";};
+
+$("#inventory-details").ontoggle=()=>{if(projectId&&$("#inventory-details").open)Promise.all([instances(),volumes()]).catch(e=>error(e.message));};
+let vmDebounce;
+$("#vm-search").oninput=e=>{clearTimeout(vmDebounce);vmDebounce=setTimeout(()=>{state.vmQ=e.target.value;state.vmCostOffset=0;vmCosts().catch(e=>error(e.message));},250);};
+for(const [id,key] of [["#vm-status","vmStatus"],["#vm-limit","vmLimit"]])$(id).onchange=e=>{state[key]=key==="vmLimit"?Number(e.target.value):e.target.value;state.vmCostOffset=0;vmCosts().catch(e=>error(e.message));};

@@ -117,6 +117,7 @@ def create_app(settings=None, engine=None, client_factory=None):
         )
 
     @application.get("/", include_in_schema=False)
+    @application.get("/sync", include_in_schema=False)
     @application.get("/projects/{project_id}", include_in_schema=False)
     def dashboard():
         return FileResponse(STATIC / "index.html")

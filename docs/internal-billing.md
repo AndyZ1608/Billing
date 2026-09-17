@@ -106,3 +106,25 @@ No IP, bandwidth, router, load balancer, backup, Kubernetes, tax/payment or comm
 Cost cards, project/VM tables, monetary breakdowns and invoice views display VND to the nearest whole dong using ROUND_HALF_UP (ties away from zero). Browser formatting uses decimal strings and BigInt, never Number arithmetic. The API's existing display_total uses Decimal ROUND_HALF_UP. Raw API calculation fields, stored NUMERIC values, audit snapshots and quantity fields retain full precision. USD presentation and all billing formulas remain unchanged. Displayed components may differ from a displayed total by a dong because each value is rounded independently only for presentation; totals are calculated from precise amounts.
 
 Validation: `node --test tests/test_money_display.cjs` and `python -m pytest tests/test_money_display.py` cover exact ties, credits, very large values, fractional display exclusion, formatter loading and preservation of raw API values.
+# Project-first dashboard
+
+Overview shows current capacity, selected-period costs, and one row per project.
+It does not request or render a global VM list. Click a project to load its VM
+cost table: 20 rows by default, with 50/100 options, name/UUID search, and state
+filters. Current VM counts exclude confirmed missing/deleted resources; ACTIVE
+counts use the same current inventory scope. Historical costs remain available
+even when a VM is no longer ACTIVE. Only ACTIVE is labelled BILLING now.
+
+Advanced inventory and volumes load when expanded. VM detail keeps raw inventory
+and lifecycle trace under Advanced / History. Reconciliation and sync runs are
+on `/sync`; invoice features remain under Advanced navigation. VND presentation
+continues to use exact HALF_UP whole-dong formatting; raw financial values are
+unchanged.
+
+Existing summary/project/VM APIs are reused. VM listing adds `q`, `status`, and
+optional `current_only`; legacy callers still receive historical resources by
+default. Project sorting adds `active_vm_count` and `total_cost` for dated queries.
+Project reports restrict inventory SQL queries by project UUID. Pagination slices
+the existing period report on the server; it does not yet avoid computing every
+VM cost within the selected project. No per-project frontend request loop or
+database migration was introduced.

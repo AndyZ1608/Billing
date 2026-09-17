@@ -207,6 +207,8 @@ Sort = Literal[
     "project_name",
     "project_id",
     "instance_count",
+    "active_vm_count",
+    "total_cost",
     "vcpu_count",
     "ram_gb",
     "nova_root_disk_gb",
@@ -243,7 +245,11 @@ def billing_projects(
         ]
         rows.sort(key=lambda r: str(r["project_id"]))
         rows.sort(
-            key=lambda r: str(r.get(sort, "")).casefold() if sort.startswith("project_") else r.get(sort, 0),
+            key=lambda r: str(r.get(sort, "")).casefold()
+            if sort.startswith("project_")
+            else r["cost"]["total"]
+            if sort == "total_cost"
+            else r.get(sort, 0),
             reverse=direction == "desc",
         )
         return response(
@@ -255,6 +261,8 @@ def billing_projects(
                 "offset": offset,
             }
         )
+    if sort in ("active_vm_count", "total_cost"):
+        raise HTTPException(422, "This sort requires start and end")
     rows = summaries(db, request)
     if q:
         rows = [
