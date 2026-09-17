@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OpenStack · Costs & Pricing</title><link rel="stylesheet" href="/static/style.css"><script defer src="/static/costs.js"></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OpenStack · Costs & Pricing</title><link rel="stylesheet" href="/static/style.css"><script src="/static/money.js" defer></script><script defer src="/static/costs.js"></script></head>
 <body><header><a class="brand" href="/">◈ OpenStack <small>Billing & rated usage</small></a><a href="/docs">API docs ↗</a></header><main>
 <nav class="tabs" aria-label="Main navigation"><a href="/">Overview</a><a href="/#projects">Projects</a><a href="/#vm-billing">VM Billing</a><a href="/history">Usage</a><a href="/#sync-section">OpenStack Sync</a><a href="/quality">Data Quality</a><a href="/pricing">Pricing</a><details><summary>Advanced</summary><a href="/costs">Charge audit</a> · <a href="/metering-runs">Metering runs</a> · <a href="/rating-runs">Rating runs</a> · <a href="/billing-cycles">Billing cycles</a> · <a href="/invoices">Invoices</a> · <a href="/adjustments">Adjustments</a></details></nav>
 <p class="eyebrow">PHASE 03 / USAGE → MONETARY CHARGE</p><h1 id="page-title">Rated costs</h1>
@@ -35,6 +35,6 @@
 <h2>Pricing audit log</h2><div class="table-wrap"><table id="pricing-audit"><thead><tr><th>Time / Actor</th><th>Action</th><th>Entity / ID</th><th>Before / After</th></tr></thead><tbody></tbody></table></div><p class="muted">Showing up to 100 audit events. Full paginated audit is available in the API.</p>
 </section>
 <section id="rating-runs-view" hidden><div class="section-heading"><h2>Rating runs</h2><button id="runs-incremental">Run incremental rating · Admin</button></div><div class="table-wrap"><table id="rating-runs-table"><thead><tr><th>Run / Started</th><th>Status / Version</th><th>Usage processed</th><th>Charges created / skipped</th><th>Unrated segments</th><th>Force / Actor</th><th>Errors</th></tr></thead><tbody></tbody></table></div><div id="runs-pager" class="pager"></div></section>
-<section id="charge-audit-view" hidden><h2>Why was this amount charged?</h2><p>Original usage and stored financial snapshot. No current price lookup is used for this display.</p><div id="audit-links" class="tabs"></div><pre id="charge-audit-json"></pre></section>
+<section id="charge-audit-view" hidden><h2>Why was this amount charged?</h2><p>Raw audit data (full precision): original usage and stored financial snapshot. No current price lookup is used for this display.</p><div id="audit-links" class="tabs"></div><pre id="charge-audit-json"></pre></section>
 <footer>OpenStack Billing · Phase 3 <span>Final rated usage · No tax, currency conversion or invoices.</span></footer>
 </main></body></html>

@@ -99,3 +99,10 @@ No live credentials were configured during implementation. Real OpenStack authen
 ## Known limits
 
 No IP, bandwidth, router, load balancer, backup, Kubernetes, tax/payment or commercial contract work in this iteration. Accuracy is bounded by polling and trusted first observation. Very large selected ranges still use the existing metering query representation in memory; pricing is cached per report and charge lookups are batched. This POC retains its existing loopback/read-access security model; deploy behind appropriate network/access controls.
+
+
+## VND presentation
+
+Cost cards, project/VM tables, monetary breakdowns and invoice views display VND to the nearest whole dong using ROUND_HALF_UP (ties away from zero). Browser formatting uses decimal strings and BigInt, never Number arithmetic. The API's existing display_total uses Decimal ROUND_HALF_UP. Raw API calculation fields, stored NUMERIC values, audit snapshots and quantity fields retain full precision. USD presentation and all billing formulas remain unchanged. Displayed components may differ from a displayed total by a dong because each value is rounded independently only for presentation; totals are calculated from precise amounts.
+
+Validation: `node --test tests/test_money_display.cjs` and `python -m pytest tests/test_money_display.py` cover exact ties, credits, very large values, fractional display exclusion, formatter loading and preservation of raw API values.
