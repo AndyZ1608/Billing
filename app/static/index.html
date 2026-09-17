@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OpenStack · Billing Inventory</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<header>
+  <a class="brand" href="/">◈ <span>OpenStack <small>Billing inventory</small></span></a>
+  <div class="header-actions"><a href="/docs" target="_blank" rel="noopener">API docs ↗</a><button id="test-connection">Test connection / sync</button><button id="sync">Sync now</button></div>
+</header>
+<main>
+  <nav class="tabs" aria-label="Main navigation"><a href="/">Overview</a><a href="/#projects">Projects</a><a href="/#vm-billing">VM Billing</a><a href="/history">Usage</a><a href="/#sync-section">OpenStack Sync</a><a href="/quality">Data Quality</a><a href="/pricing">Pricing</a><details><summary>Advanced</summary><a href="/costs">Charge audit</a> · <a href="/metering-runs">Metering runs</a> · <a href="/rating-runs">Rating runs</a> · <a href="/billing-cycles">Billing cycles</a> · <a href="/invoices">Invoices</a> · <a href="/adjustments">Adjustments</a></details></nav>
+  <div class="heading"><div><p class="eyebrow">INTERNAL CPU · RAM · SSD BILLING</p><h1 id="title">Cloud overview</h1></div><span class="tag">Internal VND costs</span></div>
+  <p class="notice">Current allocated capacity is shown in capacity columns. Costs and resource-hours use the selected period. Open usage is estimated; missing data is never presented as a complete zero cost.</p>
+  <div id="error" class="error" role="alert" hidden></div>
+  <section class="connection" aria-label="Connection and freshness">
+    <div><span class="label">OpenStack connection</span><strong id="connection">Loading…</strong></div>
+    <div><span class="label">Region</span><strong id="region">—</strong></div>
+    <div><span class="label">Last complete sync</span><strong id="last-sync">—</strong></div>
+    <div><span class="label">Last failed / partial sync</span><strong id="last-failure">—</strong></div>
+  </section>
+  <p id="freshness" class="muted" aria-live="polite"></p>
+  <p id="quality" class="notice warning" hidden></p>
+  <form id="internal-period" class="filters"><label>Period<select id="period-preset"><option value="month">This Month</option><option value="today">Today</option><option value="last">Last Month</option><option value="custom">Custom Range</option></select></label><label>Start date<input type="date" id="period-start" required></label><label>End date (exclusive)<input type="date" id="period-end" required></label><button>Apply period</button></form>
+  <p id="internal-rates" class="notice"></p><p id="internal-status" class="notice" role="status"></p><section id="cost-metrics" class="metrics"></section>
+  <section id="metrics" class="metrics" aria-label="Current quantities"></section>
+  <section id="overview">
+    <div class="section-heading"><div><h2>Projects</h2><p class="muted">Select a project to inspect its resources.</p></div><label class="search">Search projects<input id="search" type="search" placeholder="Project name or UUID" maxlength="255"></label></div>
+    <div class="table-wrap"><table id="projects"><thead><tr>
+      <th><button data-sort="project_name">Project ↕</button></th>
+      <th><button data-sort="instance_count">Instances ↕</button></th>
+      <th><button data-sort="vcpu_count">vCPU ↕</button></th>
+      <th><button data-sort="ram_gb">RAM ↕</button></th>
+      <th>SSD GiB</th><th>CPU cost</th><th>RAM cost</th><th>SSD cost</th><th>Total cost</th>
+    </tr></thead><tbody></tbody></table></div><div id="project-pager" class="pager"></div>
+  </section>
+  <section id="detail" hidden>
+    <nav id="project-tabs" class="tabs" aria-label="Project sections"></nav>
+    <a href="/">← All projects</a><p id="project-meta" class="muted"></p>
+    <h2>Instances</h2><p class="muted">All observed statuses, including retained missing resources. The configured policy determines which contribute to the summary.</p>
+    <div class="table-wrap"><table id="instances"><thead><tr><th>Name / UUID</th><th>Status / presence</th><th>vCPU</th><th>RAM GiB</th><th>Root GiB</th><th>Ephemeral GiB</th><th>Flavor / boot source</th><th>Created</th><th>Last seen</th></tr></thead><tbody></tbody></table></div><div id="instance-pager" class="pager"></div>
+    <h2>Volumes</h2><div class="table-wrap"><table id="volumes"><thead><tr><th>Name / UUID</th><th>Status / presence</th><th>Type</th><th>Size GiB</th><th>Bootable</th><th>Attached VM UUID</th><th>Created</th><th>Last seen</th></tr></thead><tbody></tbody></table></div><div id="volume-pager" class="pager"></div>
+  </section>
+  <section id="vm-billing"><h2>VM Billing</h2><p>SSD includes local disks and singly attached Cinder volumes at their observed attachment intervals. Shared/unattached volumes remain project storage costs.</p><div class="table-wrap"><table id="internal-vms"><thead><tr><th>VM / UUID</th><th>Project UUID</th><th>State</th><th>vCPU</th><th>RAM GiB</th><th>SSD GiB</th><th>CPU cost</th><th>RAM cost</th><th>SSD cost</th><th>Total</th></tr></thead><tbody></tbody></table></div><div id="vm-cost-pager" class="pager"></div></section>
+  <section id="vm-cost-detail" hidden><h2 id="vm-title">VM cost trace</h2><pre id="vm-inventory"></pre><div id="vm-cost-cards" class="metrics"></div><p id="vm-trace-status"></p><div class="table-wrap"><table id="vm-trace"><thead><tr><th>From → To</th><th>State / Source</th><th>Meter</th><th>Allocation</th><th>Hours</th><th>Usage</th><th>Unit price</th><th>Cost</th><th>Status</th><th>Audit</th></tr></thead><tbody></tbody></table></div><div id="vm-trace-pager" class="pager"></div></section>
+  <section id="sync-section"><h2>OpenStack reconciliation</h2><p id="reconciliation-status"></p><div class="table-wrap"><table id="reconciliation"><thead><tr><th>Project / UUID</th><th>OpenStack VMs</th><th>Billing VMs</th><th>OpenStack volumes</th><th>Billing volumes</th></tr></thead><tbody></tbody></table></div><details><summary>Connection and reconciliation details</summary><pre id="diagnostics"></pre></details><h2>Recent sync runs</h2><div class="table-wrap"><table id="runs"><thead><tr><th>Started</th><th>Status</th><th>Projects</th><th>Instances</th><th>Volumes</th><th>Errors / quality notes</th></tr></thead><tbody></tbody></table></div></section>
+  <details><summary>Current aggregation policy</summary><p class="muted">Policy changes take effect after application restart. Excluded statuses remain visible in inventory.</p><pre id="policy"></pre></details>
+  <footer>Internal OpenStack Billing <span>Times shown in your browser’s local timezone.</span></footer>
+</main>
+</body>
+</html>

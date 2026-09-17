@@ -1,0 +1,10 @@
+# Counts represent current allocation, never resource-hours or monetary charges.
+billing:
+  nova:
+    counted_states: [ACTIVE, SHUTOFF, PAUSED, SUSPENDED, RESCUE]
+    # Optional per-state overrides; dimensions not listed here stay counted.
+    # state_metrics:
+    #   SHUTOFF: {vcpu: false, ram: false, root_disk: true, ephemeral_disk: true}
+    state_metrics: {}
+  cinder:
+    counted_states: [available, in-use, attaching, detaching, reserved, maintenance, backing-up]

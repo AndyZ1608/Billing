@@ -1,0 +1,15 @@
+{
+  "projects": [
+    {"id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","name":"Project A","domain_id":"default","enabled":true},
+    {"id":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","name":"Project B","domain_id":"default","enabled":true}
+  ],
+  "instances": [
+    {"id":"10000000-0000-0000-0000-000000000001","name":"VM1","project_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","status":"ACTIVE","created_at":"2026-01-01T00:00:00Z","image":{"id":"image-a"},"flavor":{"id":"small","original_name":"Small","vcpus":2,"ram":4096,"disk":20,"ephemeral":10}},
+    {"id":"10000000-0000-0000-0000-000000000002","name":"VM2","project_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","status":"SHUTOFF","created_at":"2026-01-02T00:00:00Z","image":{"id":"image-a"},"flavor":{"id":"medium","original_name":"Medium","vcpus":4,"ram":8192,"disk":40,"ephemeral":0}},
+    {"id":"10000000-0000-0000-0000-000000000003","name":"VM3","project_id":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","status":"ACTIVE","created_at":"2026-01-03T00:00:00Z","image":"","flavor":{"id":"large","original_name":"Large","vcpus":8,"ram":16384,"disk":80,"ephemeral":20}}
+  ],
+  "volumes": [
+    {"id":"20000000-0000-0000-0000-000000000001","name":"Volume1","project_id":"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa","status":"available","volume_type":"standard","size":100,"bootable":"false","created_at":"2026-01-01T00:00:00Z","attachments":[]},
+    {"id":"20000000-0000-0000-0000-000000000002","name":"Volume2","project_id":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","status":"in-use","volume_type":"ssd","size":500,"bootable":"true","created_at":"2026-01-03T00:00:00Z","attachments":[{"server_id":"10000000-0000-0000-0000-000000000003","device":"/dev/vda"}]}
+  ]
+}

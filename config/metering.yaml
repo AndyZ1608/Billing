@@ -1,0 +1,17 @@
+# Phase 2 technical allocation policy. No currency or prices.
+# After a version is registered, policy edits require a new METERING_CALCULATION_VERSION.
+metering:
+  instance:
+    ACTIVE: &allocated {instance: true, vcpu: true, ram: true, root_disk: true, ephemeral_disk: true}
+    SHUTOFF: *allocated
+    PAUSED: *allocated
+    SUSPENDED: *allocated
+    RESCUE: *allocated
+    SHELVED: *allocated
+    SHELVED_OFFLOADED: {instance: false, vcpu: false, ram: false, root_disk: true, ephemeral_disk: false}
+    ERROR: &excluded {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    DELETED: *excluded
+    SOFT_DELETED: *excluded
+  volume:
+    counted_states: [available, in-use, reserved, attaching, detaching, extending]
+    excluded_states: [error, error_deleting, deleting, creating]

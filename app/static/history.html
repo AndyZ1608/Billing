@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OpenStack · Historical Usage</title>
+  <link rel="stylesheet" href="/static/style.css"><script src="/static/history.js" defer></script>
+</head>
+<body>
+<header><a class="brand" href="/">◈ <span>OpenStack <small>Billing inventory & metering</small></span></a><a href="/docs">API docs ↗</a></header>
+<main>
+  <nav class="tabs" aria-label="Main navigation"><a href="/">Overview</a><a href="/#projects">Projects</a><a href="/#vm-billing">VM Billing</a><a href="/history">Usage</a><a href="/#sync-section">OpenStack Sync</a><a href="/quality">Data Quality</a><a href="/pricing">Pricing</a><details><summary>Advanced</summary><a href="/costs">Charge audit</a> · <a href="/metering-runs">Metering runs</a> · <a href="/rating-runs">Rating runs</a> · <a href="/billing-cycles">Billing cycles</a> · <a href="/invoices">Invoices</a> · <a href="/adjustments">Adjustments</a></details></nav>
+  <div class="heading"><div><p class="eyebrow">HISTORICAL ALLOCATED RESOURCE-HOURS</p><h1 id="history-title">Historical usage</h1></div><span class="tag">Usage only</span></div>
+  <p class="notice">Usage = allocated capacity × elapsed seconds ÷ 3600. FINAL records come from closed lifecycle periods. Open and awaiting-metering periods are PROVISIONAL. Polling cannot reconstruct allocation before the first baseline observation.</p>
+  <div id="history-error" role="alert" class="error" hidden></div>
+  <nav id="historical-project-tabs" class="tabs" hidden></nav>
+  <section id="report-controls" class="filters" aria-label="Historical report range">
+    <label>Project<select id="history-project"><option value="">All projects</option></select></label>
+    <label>From date<input id="history-start" type="date" required></label>
+    <label>To date (exclusive)<input id="history-end" type="date" required></label>
+    <label>Reporting timezone<input id="history-timezone" value="Asia/Ho_Chi_Minh" required></label>
+    <label>Calculation version<select id="history-version"></select></label>
+    <button id="history-load">Load usage</button><button id="history-remeter" class="secondary">Re-meter range</button>
+  </section>
+  <p id="history-status" class="muted" aria-live="polite"></p>
+  <p id="history-quality" class="notice warning" hidden></p>
+  <section id="history-metrics" class="metrics" aria-label="Historical totals"></section>
+  <section id="history-projects-section"><h2>Usage by project</h2><div class="table-wrap"><table id="history-projects"><thead><tr><th>Project</th><th>Instance h</th><th>vCPU h</th><th>RAM GiB-h</th><th>Root GiB-h</th><th>Ephemeral GiB-h</th><th>Volume h</th><th>Volume GiB-h</th></tr></thead><tbody></tbody></table></div><div id="history-projects-pager" class="pager"></div></section>
+  <section id="history-resources-section" hidden><h2>Resource usage</h2><p class="muted">Ordered by vCPU-hours, then volume capacity-hours.</p><div class="table-wrap"><table id="history-resources"><thead><tr><th>Resource</th><th>Type</th><th>vCPU h</th><th>RAM GiB-h</th><th>Root GiB-h</th><th>Volume GiB-h</th></tr></thead><tbody></tbody></table></div><div id="history-resources-pager" class="pager"></div></section>
+  <section id="history-daily-section"><h2>Daily usage</h2><div class="table-wrap"><table id="history-daily"><thead><tr><th>Local date</th><th>Instance h</th><th>vCPU h</th><th>RAM GiB-h</th><th>Root GiB-h</th><th>Ephemeral GiB-h</th><th>Volume h</th><th>Volume GiB-h</th></tr></thead><tbody></tbody></table></div></section>
+  <section id="lifecycle-section" hidden><h2>Resource lifecycle</h2><p class="muted">Bounds are start-inclusive and end-exclusive. Closed allocations are immutable. A confirmed disappearance is inferred at first missing, not proven deletion.</p><div class="table-wrap"><table id="lifecycle"><thead><tr><th>From (UTC)</th><th>To (UTC)</th><th>State</th><th>vCPU / RAM MiB</th><th>Root / Ephemeral GiB</th><th>Volume GiB / Type</th><th>Confidence / Closure</th><th>Evidence</th></tr></thead><tbody></tbody></table></div><div id="lifecycle-pager" class="pager"></div></section>
+  <section id="usage-detail-section" hidden><h2>Usage audit</h2><div class="table-wrap"><table id="usage-detail"><thead><tr><th>Meter / status</th><th>From → To (UTC)</th><th>Capacity</th><th>Seconds</th><th>Usage</th><th>Source</th></tr></thead><tbody></tbody></table></div><div id="usage-detail-pager" class="pager"></div></section>
+  <section id="metering-runs-section" hidden><div class="section-heading"><h2>Metering runs</h2><button id="metering-run">Run incremental metering</button></div><div class="table-wrap"><table id="metering-runs"><thead><tr><th>Started / Run ID</th><th>Status / Version</th><th>Periods</th><th>Records created / reused</th><th>Watermark</th><th>Errors</th></tr></thead><tbody></tbody></table></div><div id="metering-runs-pager" class="pager"></div></section>
+  <section id="data-quality-section" hidden><h2>Data quality</h2><div id="quality-metrics" class="metrics"></div><h2>Unknown states</h2><div class="table-wrap"><table id="unknown-states"><thead><tr><th>Resource type</th><th>State</th><th>Count</th></tr></thead><tbody></tbody></table></div><h2>Recent errors</h2><div class="table-wrap"><table id="quality-errors"><thead><tr><th>Job / time</th><th>Status</th><th>Details</th></tr></thead><tbody></tbody></table></div></section>
+  <details><summary>Versioned metering policy and meter definitions</summary><pre id="metering-policy"></pre></details>
+  <footer>OpenStack Billing · Phase 3 <span>Resource allocation history and usage. Rated charges are shown in Costs.</span></footer>
+</main>
+</body></html>
