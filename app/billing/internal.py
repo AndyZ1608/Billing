@@ -264,8 +264,16 @@ def report(db, settings, start, end, project_id=None, instance_id=None, now=None
                 if not volume.is_missing and volume.status in policy.volume.counted_states
                 else Decimal(0)
             )
-            current[volume.project_id]["cinder_volume_gib"] += size
             owners = {a["instance_id"] for a in volume.attachments}
+            if policy.volume.active_attachment_only and not any(
+                UUID(owner) in instances
+                and instances[UUID(owner)].project_id == volume.project_id
+                and instances[UUID(owner)].status == "ACTIVE"
+                and not instances[UUID(owner)].is_missing
+                for owner in owners
+            ):
+                size = Decimal(0)
+            current[volume.project_id]["cinder_volume_gib"] += size
             for owner_text in owners:
                 owner = UUID(owner_text)
                 if owner not in vm_buckets or instances[owner].project_id != volume.project_id:

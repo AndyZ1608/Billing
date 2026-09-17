@@ -24,7 +24,15 @@ def runtime(tmp_path, monkeypatch):
     def foreign_keys(connection, record):
         connection.execute("PRAGMA foreign_keys=ON")
 
-    settings = Settings(_env_file=None, database_url=url, sync_enabled=False, retain_raw_payload=True)
+    settings = Settings(
+        _env_file=None,
+        database_url=url,
+        sync_enabled=False,
+        retain_raw_payload=True,
+        metering_calculation_version="meter-v1",
+        metering_policy_path="tests/fixtures/legacy-metering.yaml",
+        billing_policy_path="tests/fixtures/legacy-billing.yaml",
+    )
     sessions = make_sessions(engine)
     fake = FakeClient()
     manager = SyncManager(engine, sessions, settings, lambda: fake)

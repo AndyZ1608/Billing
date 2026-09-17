@@ -3,15 +3,18 @@
 metering:
   instance:
     ACTIVE: &allocated {instance: true, vcpu: true, ram: true, root_disk: true, ephemeral_disk: true}
-    SHUTOFF: *allocated
-    PAUSED: *allocated
-    SUSPENDED: *allocated
-    RESCUE: *allocated
-    SHELVED: *allocated
-    SHELVED_OFFLOADED: {instance: false, vcpu: false, ram: false, root_disk: true, ephemeral_disk: false}
+    SHUTOFF: {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    PAUSED: {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    SUSPENDED: {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    RESCUE: {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    SHELVED: {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    SHELVED_OFFLOADED: {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
     ERROR: &excluded {instance: false, vcpu: false, ram: false, root_disk: false, ephemeral_disk: false}
+    BUILD: *excluded
+    VERIFY_RESIZE: *excluded
     DELETED: *excluded
     SOFT_DELETED: *excluded
   volume:
+    active_attachment_only: true
     counted_states: [available, in-use, reserved, attaching, detaching, extending]
     excluded_states: [error, error_deleting, deleting, creating]

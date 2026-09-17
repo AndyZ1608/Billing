@@ -1,3 +1,7 @@
+## Current policy: ACTIVE-only with Nova notifications
+
+The current default is meter-v2: only ACTIVE VM intervals are billable. Nova notifications provide the fast path; REST polling remains reconciliation. Prices are unchanged. Cinder follows attached ACTIVE intervals and is counted once. Earlier allocation-policy descriptions below describe retained historical behavior. See [setup, migration and policy details](docs/nova-notifications.md) before upgrading.
+
 ## Internal billing focus
 
 The primary workflow is now OpenStack discovery -> lifecycle -> precise CPU/RAM/SSD usage -> VND cost -> project/VM dashboard. Existing invoice features remain under Advanced. See [Internal billing setup and live validation](docs/internal-billing.md) for credentials, explicit INTERNAL-VND bootstrap, state/storage rules, APIs and CLI reconciliation. Internal test rates: CPU 10,000 VND/vCPU-hour; RAM 11,000 VND/GiB-hour; SSD 500 VND/GiB-hour. These are environment configuration, not automatic overrides of historical prices.

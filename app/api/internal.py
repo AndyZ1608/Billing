@@ -40,14 +40,29 @@ def internal_report(request, db, start=None, end=None, project_id=None, instance
     if as_of:
         as_of = min(as_of, utcnow())
     try:
-        return report(db, settings, start, end, project_id, instance_id, now=as_of, trace=trace)
+        result = report(db, settings, start, end, project_id, instance_id, now=as_of, trace=trace)
+        connection = request.app.state.notifications.status
+        result["diagnostics"]["notification_connection"] = connection
+        if settings.nova_notification_enabled and connection != "CONNECTED":
+            result["cost_complete"] = False
+            if result["data_quality_status"] == "HEALTHY":
+                result["data_quality_status"] = "PARTIAL"
+        return result
     except LookupError as exc:
         raise HTTPException(409, str(exc)) from None
 
 
 @router.get("/api/v1/diagnostics/openstack")
 def openstack_diagnostics(request: Request, db: DB):
-    return response(diagnostics(db, request.app.state.settings))
+    result = diagnostics(db, request.app.state.settings)
+    result["notification_connection"] = request.app.state.notifications.status
+    if (
+        request.app.state.settings.nova_notification_enabled
+        and result["notification_connection"] != "CONNECTED"
+        and result["data_quality_status"] == "HEALTHY"
+    ):
+        result["data_quality_status"] = "PARTIAL"
+    return response(result)
 
 
 @router.get("/api/v1/billing/instances")
@@ -97,5 +112,26 @@ def instance_cost(
             "trace_total": len(trace),
             "limit": limit,
             "offset": offset,
+        }
+    )
+
+
+@router.get("/api/v1/diagnostics/notifications")
+def notification_events(request: Request, db: DB, limit: Limit = 50, offset: Offset = 0):
+    from sqlalchemy import select
+
+    from app.models import ProcessedNotification
+
+    rows = db.scalars(
+        select(ProcessedNotification)
+        .where(ProcessedNotification.cloud_id == request.app.state.settings.openstack_cloud_id)
+        .order_by(ProcessedNotification.received_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return response(
+        {
+            "connection": request.app.state.notifications.status,
+            "items": [{c.key: getattr(row, c.key) for c in row.__table__.columns} for row in rows],
         }
     )

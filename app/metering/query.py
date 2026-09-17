@@ -7,6 +7,7 @@ from sqlalchemy import or_, select
 from app.metering.math import quantity, rounded, seconds, split_days, utc
 from app.metering.policy import MeteringPolicy
 from app.metering.registry import BY_NAME, METERS, allocations
+from app.metering.storage import billable_windows
 from app.models import MeteringPolicyVersion, Project, StatePeriod, UsageRecord, utcnow
 
 
@@ -68,6 +69,11 @@ def usage_view(
     rows, issues = [], []
     for period in periods:
         capacities, quality = allocations(period, policy)
+        stop = min(cutoff, utc(period.valid_to)) if period.valid_to else cutoff
+        windows, storage_issues, _ = billable_windows(
+            db, period, policy, max(start, utc(period.valid_from)), stop
+        )
+        quality += storage_issues
         if quality:
             issues.append(
                 {
@@ -106,7 +112,8 @@ def usage_view(
         else:
             stop = min(cutoff, utc(period.valid_to)) if period.valid_to else cutoff
             segments = [
-                (m.name, m.unit, allocated, max(start, utc(period.valid_from)), stop, "PROVISIONAL", None)
+                (m.name, m.unit, allocated, a, b, "PROVISIONAL", None)
+                for a, b in windows
                 for m, allocated in capacities
             ]
         for name, unit, allocated, lower, upper, status, record_id in segments:

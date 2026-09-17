@@ -1,3 +1,7 @@
+## Current policy: ACTIVE-only with Nova notifications
+
+The current default is meter-v2: only ACTIVE VM intervals are billable. Nova notifications provide the fast path; REST polling remains reconciliation. Prices are unchanged. Cinder follows attached ACTIVE intervals and is counted once. Earlier allocation-policy descriptions below describe retained historical behavior. See [setup, migration and policy details](nova-notifications.md) before upgrading.
+
 # Internal OpenStack billing
 
 ## Scope and operation

@@ -2,7 +2,7 @@
 
 from collections import Counter
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.metering.math import utc
 from app.metering.policy import load_metering_policy
@@ -55,7 +55,18 @@ def diagnostics(db, settings):
             else None
         )
 
+    from app.models import ProcessedNotification
+
+    notification_issues = db.scalar(
+        select(func.count())
+        .select_from(ProcessedNotification)
+        .where(ProcessedNotification.cloud_id == cloud, ProcessedNotification.issue_code.is_not(None))
+    )
+    if notification_issues and status == "HEALTHY":
+        status = "PARTIAL"
     return dict(
+        notification_issue_count=notification_issues,
+        notifications_enabled=settings.nova_notification_enabled,
         data_quality_status=status,
         auth_ok=bool(connection and connection.connection_status == "CONNECTED"),
         region=settings.os_region_name,

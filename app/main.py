@@ -16,6 +16,7 @@ from app.core.config import Settings
 from app.core.logging import configure_logging, event
 from app.db.session import make_engine, make_sessions
 from app.metering.engine import MeteringEngine
+from app.notifications.consumer import NovaConsumer
 from app.rating.engine import RatingEngine
 from app.sync.engine import SyncManager, ensure_cloud
 
@@ -31,6 +32,7 @@ def create_app(settings=None, engine=None, client_factory=None):
     manager = SyncManager(engine, sessions, settings, client_factory)
     metering = MeteringEngine(engine, sessions, settings, manager.gate)
     rating = RatingEngine(engine, sessions, settings, manager.gate)
+    notifications = NovaConsumer(engine, sessions, settings, manager, metering)
     metering.on_completed = rating.after_metering
     if settings.metering_enabled:
         manager.on_completed = metering.after_sync
@@ -44,7 +46,9 @@ def create_app(settings=None, engine=None, client_factory=None):
             metering.register_policy(db)
         if settings.sync_enabled:
             manager.start()
+        notifications.start()
         yield
+        notifications.close()
         manager.close()
         engine.dispose()
 
@@ -57,6 +61,7 @@ def create_app(settings=None, engine=None, client_factory=None):
             "Billing cycles, immutable invoices and adjustments; no payment processing."
         ),
     )
+    application.state.notifications = notifications
     application.state.settings = settings
     application.state.sessions = sessions
     application.state.sync_manager = manager

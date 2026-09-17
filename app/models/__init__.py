@@ -131,7 +131,7 @@ class Observation(Base):
     __tablename__ = "resource_observations"
     observation_id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     cloud_id: Mapped[UUID] = mapped_column(ForeignKey("clouds.cloud_id"))
-    sync_run_id: Mapped[UUID] = mapped_column(ForeignKey("sync_runs.sync_run_id"))
+    sync_run_id: Mapped[UUID | None] = mapped_column(ForeignKey("sync_runs.sync_run_id"))
     resource_type: Mapped[str] = mapped_column(String(20))
     resource_id: Mapped[UUID] = mapped_column(Uuid)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -162,6 +162,7 @@ from app.models.invoicing import (  # noqa: E402,F401
     InvoiceLine,
     InvoiceNumberCounter,
 )
+from app.models.notifications import ProcessedNotification  # noqa: E402,F401
 from app.models.pricing import (  # noqa: E402,F401
     ChargeRecord,
     PriceBook,

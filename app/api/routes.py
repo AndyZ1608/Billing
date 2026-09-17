@@ -103,7 +103,7 @@ def health(request: Request):
 def readiness(db: DB):
     try:
         version = db.scalar(text("SELECT version_num FROM alembic_version"))
-        if version != "0004":
+        if version != "0005":
             raise ValueError()
         return {"ready": True, "database": "OK"}
     except Exception:

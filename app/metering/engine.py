@@ -3,12 +3,13 @@ import threading
 from time import monotonic
 from uuid import uuid4
 
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 
 from app.core.logging import event
 from app.metering.math import quantity, rounded, seconds, split_days, utc
 from app.metering.policy import load_metering_policy
 from app.metering.registry import allocations
+from app.metering.storage import billable_windows
 from app.models import MeteringPolicyVersion, MeteringRun, StatePeriod, UsageRecord, utcnow
 
 
@@ -39,7 +40,7 @@ class MeteringEngine:
                 cloud_id=self.cloud_id,
                 calculation_version=self.version,
                 policy_hash=self.policy.fingerprint,
-                policy=self.policy.model_dump(),
+                policy=self.policy.snapshot(),
             )
             db.add(registered)
             db.flush()
@@ -128,7 +129,19 @@ class MeteringEngine:
                     query = query.where(StatePeriod.valid_from < end, StatePeriod.valid_to > start)
                 elif version.watermark:
                     # Inclusive boundary safely handles multiple closures at the same clock tick.
-                    query = query.where(StatePeriod.closed_at >= version.watermark)
+                    condition = StatePeriod.closed_at >= version.watermark
+                    if self.policy.volume.active_attachment_only:
+                        # Retry closed volumes whose VM history was not yet stable.
+                        pending = (
+                            ~select(UsageRecord.usage_record_id)
+                            .where(
+                                UsageRecord.source_state_period_id == StatePeriod.period_id,
+                                UsageRecord.calculation_version == self.version,
+                            )
+                            .exists()
+                        )
+                        condition = or_(condition, (StatePeriod.resource_type == "VOLUME") & pending)
+                    query = query.where(condition)
                 periods = list(db.scalars(query.order_by(StatePeriod.closed_at, StatePeriod.period_id)))
                 ids = [p.period_id for p in periods]
                 existing = set()
@@ -151,6 +164,13 @@ class MeteringEngine:
                 count, reused, errors = 0, 0, []
                 for period in periods:
                     capacity, issues = allocations(period, self.policy)
+                    windows, storage_issues, stable = billable_windows(
+                        db, period, self.policy, period.valid_from, period.valid_to
+                    )
+                    issues += storage_issues
+                    if not stable:
+                        issues.append("awaiting_stable_vm_history")
+                        capacity = []
                     if issues:
                         errors.append(
                             {
@@ -168,7 +188,8 @@ class MeteringEngine:
                             metering_run_id=run_id,
                             codes=issues,
                         )
-                    for segment_start, segment_end in split_days(period.valid_from, period.valid_to):
+                    day_segments = [segment for a, b in windows for segment in split_days(a, b)]
+                    for segment_start, segment_end in day_segments:
                         for meter, allocated in capacity:
                             key = (period.period_id, meter.name, segment_start, segment_end)
                             if key in existing:

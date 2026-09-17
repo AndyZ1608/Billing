@@ -8,6 +8,7 @@ from app.metering.math import utc
 from app.metering.policy import MeteringPolicy
 from app.metering.query import scoped_periods
 from app.metering.registry import allocations
+from app.metering.storage import billable_windows
 from app.models import MeteringPolicyVersion, UsageRecord
 
 
@@ -34,15 +35,20 @@ def billing_readiness(db, cloud, version, start, end, project=None):
             quality += bool(issues)
             lower = max(utc(start), utc(period.valid_from))
             upper = min(utc(end), utc(period.valid_to)) if period.valid_to else utc(end)
+            windows, storage_issues, _ = billable_windows(db, period, policy, lower, upper)
+            quality += bool(storage_issues)
             incomplete = False
-            for meter, _ in meters:
-                cursor = lower
-                for record in sorted(
-                    coverage[(period.period_id, meter.name)], key=lambda r: utc(r.period_start)
-                ):
-                    if utc(record.period_start) > cursor:
-                        break
-                    cursor = max(cursor, utc(record.period_end))
-                incomplete |= cursor < upper
+            for a, b in windows:
+                for meter, _ in meters:
+                    cursor = a
+                    for record in sorted(
+                        coverage[(period.period_id, meter.name)], key=lambda r: utc(r.period_start)
+                    ):
+                        if utc(record.period_end) <= cursor:
+                            continue
+                        if utc(record.period_start) > cursor:
+                            break
+                        cursor = max(cursor, utc(record.period_end))
+                    incomplete |= cursor < b
             provisional += incomplete
     return dict(provisional_periods=provisional, quality_periods=quality)

@@ -37,7 +37,14 @@ def postgres_runtime(monkeypatch):
     rendered = scoped_url.render_as_string(hide_password=False)
     monkeypatch.setenv("DATABASE_URL", rendered)
     engine = make_engine(rendered)
-    settings = Settings(_env_file=None, database_url=rendered, sync_enabled=False)
+    settings = Settings(
+        _env_file=None,
+        database_url=rendered,
+        sync_enabled=False,
+        metering_calculation_version="meter-v1",
+        metering_policy_path="tests/fixtures/legacy-metering.yaml",
+        billing_policy_path="tests/fixtures/legacy-billing.yaml",
+    )
     sessions = make_sessions(engine)
     fake = FakeClient()
     first = SyncManager(engine, sessions, settings, lambda: fake)
@@ -296,6 +303,7 @@ def test_postgres_phase4_upgrade_locks_and_immutability(postgres_runtime):
 
     def saved():
         new_tables = {
+            "processed_notifications",
             "billing_cycles",
             "invoices",
             "invoice_lines",
@@ -405,3 +413,44 @@ def test_postgres_phase4_upgrade_locks_and_immutability(postgres_runtime):
         assert invoice.invoice_number == number
         assert billing.totals(db, invoice)["net_amount"] == invoice.grand_total - Decimal("100")
         billing.close(db, db.get(BillingCycle, cid), "pg-admin")
+
+
+def test_postgres_notification_upgrade_timestamp_and_lock(postgres_runtime):
+    from datetime import timedelta
+
+    from app.core.jobs import JobBusy
+    from app.models import ProcessedNotification, StatePeriod
+    from app.notifications.processor import NotificationProcessor
+    from tests.test_lifecycle_phase2 import T
+
+    engine, sessions, settings, fake, first, second = postgres_runtime
+    command.downgrade(Config("alembic.ini"), "0004")
+    first.clock = lambda: T
+    first.trigger(wait=True)
+    with sessions() as db:
+        before = db.scalar(select(func.count()).select_from(StatePeriod))
+    command.upgrade(Config("alembic.ini"), "head")
+    vm = fake.data["instances"][0]
+    at = T + timedelta(hours=1, seconds=32)
+    message = {
+        "message_id": str(uuid4()),
+        "timestamp": at.isoformat(),
+        "event_type": "instance.update",
+        "payload": {
+            "nova_object.namespace": "nova",
+            "nova_object.version": "1.0",
+            "nova_object.data": {"uuid": vm["id"], "tenant_id": vm["project_id"], "state": "stopped"},
+        },
+    }
+    processor = NotificationProcessor(engine, sessions, settings, first.gate)
+    with processor.lock.held(), pytest.raises(JobBusy):
+        NotificationProcessor(engine, sessions, settings).process(message, at + timedelta(seconds=2))
+    assert processor.process(message, at + timedelta(seconds=2))["status"] == "APPLIED"
+    assert processor.process(message, at + timedelta(seconds=3))["status"] == "DUPLICATE"
+    with sessions() as db:
+        assert db.scalar(select(func.count()).select_from(StatePeriod)) == before + 1
+        assert db.scalar(select(func.count()).select_from(ProcessedNotification)) == 1
+        closed = db.scalars(select(StatePeriod).where(StatePeriod.valid_to == at)).one()
+        assert closed.closed_at == at + timedelta(seconds=2)
+    with engine.connect() as connection:
+        assert not compare_metadata(MigrationContext.configure(connection), Base.metadata)

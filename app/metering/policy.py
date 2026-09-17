@@ -19,6 +19,7 @@ class InstanceMeters(StrictModel):
 
 
 class VolumeMeters(StrictModel):
+    active_attachment_only: StrictBool = False
     counted_states: list[str]
     excluded_states: list[str]
 
@@ -43,10 +44,16 @@ class MeteringPolicy(StrictModel):
             raise ValueError("Volume policy states must be lowercase")
         return self
 
+    def snapshot(self):
+        data = self.model_dump()
+        if not self.volume.active_attachment_only:
+            data["volume"].pop("active_attachment_only", None)
+        return data
+
     @property
     def fingerprint(self):
         return hashlib.sha256(
-            json.dumps(self.model_dump(), sort_keys=True, separators=(",", ":")).encode()
+            json.dumps(self.snapshot(), sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
 
 

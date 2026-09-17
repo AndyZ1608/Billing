@@ -50,8 +50,9 @@ def retain_known_allocation(resource, values):
 class LifecycleBatch:
     """Indexed mutable heads + immutable periods; runs inside the inventory transaction."""
 
-    def __init__(self, db, cloud_id, kind, run_id, now):
+    def __init__(self, db, cloud_id, kind, run_id, now, received_at=None):
         self.db, self.cloud_id, self.kind, self.run_id, self.now = db, cloud_id, kind, run_id, utc(now)
+        self.received_at = utc(received_at) if received_at else self.now
         self.resource_type = "INSTANCE" if kind == "instances" else "VOLUME"
         pairs = db.execute(
             select(LifecycleHead, StatePeriod)
@@ -92,7 +93,7 @@ class LifecycleBatch:
         end = utc(end)
         if period.valid_to is not None or end <= utc(period.valid_from) or end > self.now:
             raise LifecycleError("invalid_lifecycle_closure")
-        period.valid_to, period.closed_at = end, self.now
+        period.valid_to, period.closed_at = end, self.received_at
         period.closing_observation_id, period.closure_reason = observation.observation_id, reason
         period.first_missing_at, period.deletion_confirmed_at = first_missing, confirmed
         self.db.flush()  # release the one-open-period constraint before inserting a successor
@@ -158,6 +159,7 @@ class LifecycleBatch:
             openstack_created_at=values.get("created_at_openstack"),
             openstack_updated_at=values.get("updated_at_openstack"),
             history_confidence="BASELINE" if prior is None else "OBSERVED",
+            effective_time_source="NOVA_NOTIFICATION" if self.run_id is None else "OBSERVATION",
             quality_issues=values.get("quality_issues", []),
             source_observation_id=observation.observation_id,
             created_at=self.now,

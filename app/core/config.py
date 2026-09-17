@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     os_api_timeout_seconds: int = Field(default=30, ge=1, le=300)
     sync_interval_seconds: int = Field(default=300, ge=5)
     sync_enabled: bool = True
+    nova_notification_enabled: bool = False
+    nova_notification_transport_url: SecretStr = SecretStr("")
+    nova_notification_topic: str = Field(default="billing_notifications", pattern=r"^[a-zA-Z0-9_.-]+$")
+    nova_notification_exchange: str = Field(default="nova", pattern=r"^[a-zA-Z0-9_.-]+$")
+    nova_notification_queue: str = Field(
+        default="billing-nova-consumer", pattern=r"^billing[-_.][a-zA-Z0-9_.-]+$"
+    )
+    nova_notification_ca_cert: str = ""
+    nova_notification_max_future_seconds: int = Field(default=5, ge=0, le=60)
+
     missing_scan_threshold: int = Field(
         default=3,
         ge=2,
@@ -44,7 +54,7 @@ class Settings(BaseSettings):
     price_ssd_per_gib_hour: Decimal = Field(default=Decimal("500"), ge=0, max_digits=24, decimal_places=8)
     billing_timezone: str = "Asia/Ho_Chi_Minh"
     metering_policy_path: str = "config/metering.yaml"
-    metering_calculation_version: str = Field(default="meter-v1", pattern=r"^meter-v[0-9]+$", max_length=40)
+    metering_calculation_version: str = Field(default="meter-v2", pattern=r"^meter-v[0-9]+$", max_length=40)
     metering_enabled: bool = True
     rating_enabled: bool = True
     rating_calculation_version: str = Field(default="rating-v1", pattern=r"^rating-v[0-9]+$", max_length=40)
